@@ -1,0 +1,29 @@
+# HIRAKU check cho GitLab CI (C3). Chép hiraku-check.sh vào repo (vd ci/hiraku-check.sh) rồi include tệp này.
+# Biến bí mật: HK_API_KEY (Settings → CI/CD → Variables, bật Masked + Protected). Khóa tạo trên cổng HIRAKU.
+hiraku-check:
+  stage: test
+  image: alpine:3.20
+  variables:
+    HK_PROJECT: "AOBA-1029"                 # mã dự án trên HIRAKU
+    HK_PREVIEW_URL: "$PREVIEW_URL"          # URL https bản xem trước (tên miền đã xác minh)
+    HK_PAGES: "/ /news.html"
+    HK_GATE: "standard"                     # standard | strict | report-only
+    HK_PR_NUMBER: "$CI_MERGE_REQUEST_IID"
+    HK_SARIF: "gl-hiraku.sarif"
+  before_script:
+    - apk add --no-cache bash curl jq openssl coreutils git
+  script:
+    - bash ci/hiraku-check.sh
+  artifacts:
+    when: always
+    paths: [gl-hiraku.sarif]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+hiraku-baseline:
+  extends: hiraku-check
+  variables:
+    HK_BASELINE: "true"
+    HK_GATE: "report-only"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

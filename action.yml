@@ -1,0 +1,86 @@
+# HIRAKU check — GitHub Action "vỏ mỏng" (C3). Mã công khai được: không chứa tiêu chí, quy tắc, prompt.
+# Lõi chạy trên máy chủ HIRAKU; Action chỉ gọi API, chờ kết quả, in tóm tắt, tải SARIF, trả mã thoát.
+name: HIRAKU accessibility check
+description: Kiểm JIS X 8341-3 / WCAG trên bản xem trước qua API HIRAKU; chặn lỗi máy chắc chắn, chuyển chuyên gia mục cần người.
+author: SynthGora
+branding:
+  icon: check-circle
+  color: green
+inputs:
+  project:
+    description: Mã dự án trên HIRAKU (vd AOBA-1029)
+    required: true
+  preview-url:
+    description: URL https bản xem trước (tên miền đã xác minh trên HIRAKU)
+    required: true
+  pages:
+    description: Danh sách đường dẫn cần kiểm, cách nhau bằng dấu cách hoặc xuống dòng (vd "/ /news.html"). Trống = lấy tệp .html đổi trong PR dưới site-dir, không có thì "/"
+    required: false
+    default: ''
+  site-dir:
+    description: Thư mục gốc website trong repo, dùng khi tự lấy trang từ tệp đổi (vd "public")
+    required: false
+    default: ''
+  gate:
+    description: standard | strict | report-only
+    required: false
+    default: standard
+  ai:
+    description: '"true" = AI góp ý thêm các tiêu chí cần người (chỉ ghi chú, không chặn merge; tính vào ngân sách dự án, có trần mỗi lượt)'
+    required: false
+    default: 'false'
+  api-url:
+    description: Địa chỉ máy chủ HIRAKU
+    required: false
+    default: https://hiraku.synthgora.com
+  api-key:
+    description: Khóa API (chỉ khi không dùng OIDC). Để trống để dùng OIDC — cần permissions id-token write
+    required: false
+    default: ''
+  audience:
+    description: Audience của token OIDC (phải khớp máy chủ)
+    required: false
+    default: hiraku
+  baseline:
+    description: '"true" = đặt kết quả lần này làm mốc (chạy trên nhánh chính)'
+    required: false
+    default: 'false'
+  sarif-file:
+    description: Nơi ghi tệp SARIF (để github/codeql-action/upload-sarif tải lên tab Code scanning)
+    required: false
+    default: hiraku.sarif
+  timeout-minutes:
+    description: Thời gian chờ tối đa
+    required: false
+    default: '15'
+outputs:
+  gate:
+    description: PASS | WARN | FAIL
+    value: ${{ steps.run.outputs.gate }}
+  scan-id:
+    description: ID lượt quét
+    value: ${{ steps.run.outputs.scan_id }}
+  portal-url:
+    description: Link xem chi tiết trên cổng HIRAKU
+    value: ${{ steps.run.outputs.portal_url }}
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        HK_PROJECT: ${{ inputs.project }}
+        HK_PREVIEW_URL: ${{ inputs.preview-url }}
+        HK_PAGES: ${{ inputs.pages }}
+        HK_SITE_DIR: ${{ inputs.site-dir }}
+        HK_GATE: ${{ inputs.gate }}
+        HK_AI: ${{ inputs.ai }}
+        HK_API_URL: ${{ inputs.api-url }}
+        HK_API_KEY: ${{ inputs.api-key }}
+        HK_AUDIENCE: ${{ inputs.audience }}
+        HK_BASELINE: ${{ inputs.baseline }}
+        HK_SARIF: ${{ inputs.sarif-file }}
+        HK_TIMEOUT_MIN: ${{ inputs.timeout-minutes }}
+        HK_PR_NUMBER: ${{ github.event.pull_request.number }}
+        HK_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: bash "${{ github.action_path }}/hiraku-check.sh"
