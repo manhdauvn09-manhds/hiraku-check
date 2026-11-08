@@ -34,7 +34,11 @@ command -v jq >/dev/null || die "cần jq"
 PAGES="${HK_PAGES:-}"
 if [ -z "${PAGES// /}" ] && [ -n "${HK_SITE_DIR:-}" ] && [ -n "${HK_BASE_SHA:-}" ]; then
   dir="${HK_SITE_DIR%/}/"
-  PAGES=$(git diff --name-only "$HK_BASE_SHA" "$SHA" -- "$dir" 2>/dev/null | grep -Ei '\.html?$' | sed "s#^${dir}#/#" | head -n 20 || true)
+  PAGES=$(git diff --name-only "$HK_BASE_SHA" "$SHA" -- "$dir" 2>/dev/null | grep -Ei '\.html?$' | sed "s#^${dir}#/#; s#/index\.html\$#/#" | head -n 20 || true)
+elif [ -z "${PAGES// /}" ] && [ -n "${HK_SITE_DIR:-}" ]; then
+  # Không có PR (push nhánh chính / đặt mốc): quét mọi trang .html dưới site-dir (tối đa 20) để mốc đủ trang
+  dir="${HK_SITE_DIR%/}/"
+  PAGES=$(git ls-files -- "$dir" 2>/dev/null | grep -Ei '\.html?$' | sed "s#^${dir}#/#; s#/index\.html\$#/#" | sort | head -n 20 || true)
 fi
 [ -z "${PAGES//[[:space:]]/}" ] && PAGES="/"
 set -f; PAGES_JSON=$(printf '%s\n' $PAGES | jq -R . | jq -s 'map(select(length>0)) | unique'); set +f
@@ -90,6 +94,10 @@ done
 
 REPORT=$(get "/scans/$SCAN/report")
 get "/scans/$SCAN/report?format=sarif" > "$SARIF"
+if [ -n "${HK_SITE_DIR:-}" ]; then   # trỏ Code scanning tới đúng tệp trong repo: "/" → <site-dir>/index.html
+  jq --arg d "${HK_SITE_DIR%/}/" '(.runs[].results[].locations[].physicalLocation.artifactLocation.uri) |= ($d + (if endswith("/") then . + "index.html" else . end))' \
+    "$SARIF" > "$SARIF.tmp" && mv "$SARIF.tmp" "$SARIF"
+fi
 GATE_RES=$(echo "$REPORT" | jq -r .gate)
 PORTAL=$(echo "$REPORT" | jq -r .portal_url)
 
